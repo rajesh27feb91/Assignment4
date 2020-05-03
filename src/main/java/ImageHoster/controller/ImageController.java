@@ -35,13 +35,13 @@ public class ImageController {
         return "images";
     }
 
-    //This method is called when the details of the specific image with corresponding title are to be displayed
-    //The logic is to get the image from the getImageIdentity with corresponding title. After getting the image from the database the details are shown
-    //First receive the dynamic parameter in the incoming request URL in a string variable 'title' and also the Model type object
+    //This method is called when the details of the specific image with corresponding title and id are to be displayed
+    //The logic is to get the image from the getImageIdentity with corresponding title and id . After getting the image from the database the details are shown
+    //First receive the dynamic parameter in the incoming request URL in a string variable 'title'  and 'imageId'
+    // also the Model type object
     //Call the getImageByTitle() method in the business logic to fetch all the details of that image
     //Add the image in the Model type object with 'image' as the key
     //Return 'images/image.html' file
-
     //Also now you need to add the tags of an image in the Model type object
     //Here a list of tags is added in the Model type object
     //this list is then sent to 'images/image.html' file and the tags are displayed
@@ -87,14 +87,15 @@ public class ImageController {
 
     //This controller method is called when the request pattern is of type 'editImage'
     //This method fetches the image with the corresponding id from the database and adds it to the model with the key as 'image'
-    //The method then returns 'images/edit.html' file wherein you fill all the updated details of the image
-
+    //The method then returns 'images/edit.html' file wherein you fill all the updated details of the image if you are the owner of the image(if you have uploaded the image)
+    // If you are not the owner of the image , It shows you an Privilege Violation Error and does not let you edit
     //The method first needs to convert the list of all the tags to a string containing all the tags separated by a comma and then add this string in a Model type object
     //This string is then displayed by 'edit.html' file as previous tags of an image
     @RequestMapping(value = "/editImage")
     public String editImage(@RequestParam("imageId") Integer imageId, Model model, HttpSession session) {
         Image image = imageService.getImage(imageId);
         User user = (User) session.getAttribute("loggeduser");
+        // If you are not the owner of the image i.e. If this particular image is not uploaded by you
         if(image.getUser().getId() != user.getId()) {
             String error = "Only the owner of the image can edit the image";
             model.addAttribute("image", image);
@@ -102,6 +103,7 @@ public class ImageController {
             model.addAttribute("editError", error);
             return "images/image";
         }
+        // If you are the owner of the image i.e if You are the one to upload the image earlier
         else {
             String tags = convertTagsToString(image.getTags());
             model.addAttribute("image", image);
@@ -146,13 +148,16 @@ public class ImageController {
 
 
     //This controller method is called when the request pattern is of type 'deleteImage' and also the incoming request is of DELETE type
-    //The method calls the deleteImage() method in the business logic passing the id of the image to be deleted
+    //The method calls the deleteImage() method in the business logic passing the id of the image to be deleted if you are the owner of the image
+    // Else it will show you a Privilege Violation Error
     //Looks for a controller method with request mapping of type '/images'
     @RequestMapping(value = "/deleteImage", method = RequestMethod.DELETE)
     public String deleteImageSubmit(@RequestParam(name = "imageId") Integer imageId ,Model model, HttpSession session) {
 
         Image image = imageService.getImage(imageId);
         User user = (User) session.getAttribute("loggeduser");
+
+        //If you are not the owner of the image
         if(image.getUser().getId() != user.getId()) {
             String error = "Only the owner of the image can delete the image";
             model.addAttribute("image", image);
@@ -160,6 +165,7 @@ public class ImageController {
             model.addAttribute("deleteError", error);
             return "images/image";
         }
+        //If you are the owner of the image
         else
         {
             imageService.deleteImage(imageId);
