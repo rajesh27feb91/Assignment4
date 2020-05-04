@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMethod;
 
 import javax.servlet.http.HttpSession;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
 @Controller
@@ -38,11 +40,26 @@ public class UserController {
     }
 
     //This controller method is called when the request pattern is of type 'users/registration' and also the incoming request is of POST type
-    //This method calls the business logic and after the user record is persisted in the database, directs to login page
-    @RequestMapping(value = "users/registration", method = RequestMethod.POST)
-    public String registerUser(User user) {
-        userService.registerUser(user);
-        return "redirect:/users/login";
+
+    //If the Password entered does not match the minimum standards i.e. the password entered by the user must contain at least
+    // ---1 alphabet (a-z or A-Z), 1 number (0-9) and 1 special character (any character other than a-z, A-Z and 0-9).---
+    //the user gets an Error and have to retype the password as per standard
+    //When the Password meets the minimum Standard ,This method calls the business logic and after the user record is persisted in the database, directs to login page
+    @RequestMapping(value = "users/registration", method = RequestMethod.POST )
+    public String registerUser(User user ,Model model) {
+        String password = user.getPassword();
+        if (validatePassword(password))
+        {
+            userService.registerUser(user);
+            return "redirect:/users/login";
+        }
+        else
+        {
+            String error = "Password must contain at least 1 alphabet, 1 number & 1 special character";
+            model.addAttribute("User", user);
+            model.addAttribute("passwordTypeError", error);
+            return "users/registration";
+        }
     }
 
     //This controller method is called when the request pattern is of type 'users/login'
@@ -79,4 +96,20 @@ public class UserController {
         model.addAttribute("images", images);
         return "index";
     }
+
+    //This function is used to validate the Password strength.
+    // The password contains 1 alphabet, 1 number, and 1 special character
+
+    public static boolean validatePassword(String password){
+
+        Pattern pswNamePtrn =
+                Pattern.compile("((?=.*\\d)(?=.*[a-zA-Z])(?=.*[^a-zA-Z0-9])(?=\\S+$).{3,})");
+
+        Matcher mtch = pswNamePtrn.matcher(password);
+        if(mtch.matches()){
+            return true;
+        }
+        return false;
+    }
+
 }
