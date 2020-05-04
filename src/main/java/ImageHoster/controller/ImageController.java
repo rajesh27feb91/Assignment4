@@ -1,17 +1,16 @@
 package ImageHoster.controller;
 
+import ImageHoster.model.Comment;
 import ImageHoster.model.Image;
 import ImageHoster.model.Tag;
 import ImageHoster.model.User;
+import ImageHoster.service.CommentService;
 import ImageHoster.service.ImageService;
 import ImageHoster.service.TagService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpSession;
@@ -27,6 +26,12 @@ public class ImageController {
     @Autowired
     private TagService tagService;
 
+    @Autowired
+    private CommentService commentService;
+
+    @Autowired
+    private  CommentController commentController;
+
     //This method displays all the images in the user home page after successful login
     @RequestMapping("images")
     public String getUserImages(Model model) {
@@ -35,21 +40,23 @@ public class ImageController {
         return "images";
     }
 
-    //This method is called when the details of the specific image with corresponding title are to be displayed
-    //The logic is to get the image from the databse with corresponding title. After getting the image from the database the details are shown
-    //First receive the dynamic parameter in the incoming request URL in a string variable 'title' and also the Model type object
+    //This method is called when the details of the specific image with corresponding title and id are to be displayed
+    //The logic is to get the image from the getImageIdentity with corresponding title and id . After getting the image from the database the details are shown
+    //First receive the dynamic parameter in the incoming request URL in a string variable 'title'  and 'imageId'
+    // also the Model type object
     //Call the getImageByTitle() method in the business logic to fetch all the details of that image
     //Add the image in the Model type object with 'image' as the key
     //Return 'images/image.html' file
-
     //Also now you need to add the tags of an image in the Model type object
     //Here a list of tags is added in the Model type object
     //this list is then sent to 'images/image.html' file and the tags are displayed
-    @RequestMapping("/images/{title}")
-    public String showImage(@PathVariable("title") String title, Model model) {
-        Image image = imageService.getImageByTitle(title);
+    @RequestMapping("/images/{imageId}/{title}")
+    public String showImage(@PathVariable(name = "imageId") Integer imageId, @PathVariable(name = "title") String title, Model model) {
+        Image image = imageService.getImageIdentity(imageId, title);
+        List<Comment> comments = commentController.findComments(image);
         model.addAttribute("image", image);
         model.addAttribute("tags", image.getTags());
+        model.addAttribute("comments", comments);
         return "images/image";
     }
 
@@ -87,18 +94,31 @@ public class ImageController {
 
     //This controller method is called when the request pattern is of type 'editImage'
     //This method fetches the image with the corresponding id from the database and adds it to the model with the key as 'image'
-    //The method then returns 'images/edit.html' file wherein you fill all the updated details of the image
-
+    //The method then returns 'images/edit.html' file wherein you fill all the updated details of the image if you are the owner of the image(if you have uploaded the image)
+    // If you are not the owner of the image , It shows you an Privilege Violation Error and does not let you edit
     //The method first needs to convert the list of all the tags to a string containing all the tags separated by a comma and then add this string in a Model type object
     //This string is then displayed by 'edit.html' file as previous tags of an image
     @RequestMapping(value = "/editImage")
-    public String editImage(@RequestParam("imageId") Integer imageId, Model model) {
+    public String editImage(@RequestParam("imageId") Integer imageId, Model model, HttpSession session) {
         Image image = imageService.getImage(imageId);
-
-        String tags = convertTagsToString(image.getTags());
-        model.addAttribute("image", image);
-        model.addAttribute("tags", tags);
-        return "images/edit";
+        User user = (User) session.getAttribute("loggeduser");
+        // If you are not the owner of the image i.e. If this particular image is not uploaded by you
+        if (image.getUser().getId() != user.getId()) {
+            String error = "Only the owner of the image can edit the image";
+            List<Comment> comments = commentController.findComments(image);
+            model.addAttribute("image", image);
+            model.addAttribute("tags", image.getTags());
+            model.addAttribute("comments", comments);
+            model.addAttribute("editError", error);
+            return "images/image";
+        }
+        // If you are the owner of the image i.e if You are the one to upload the image earlier
+        else {
+            String tags = convertTagsToString(image.getTags());
+            model.addAttribute("image", image);
+            model.addAttribute("tags", tags);
+            return "images/edit";
+        }
     }
 
     //This controller method is called when the request pattern is of type 'images/edit' and also the incoming request is of PUT type
@@ -119,6 +139,7 @@ public class ImageController {
         String updatedImageData = convertUploadedFileToBase64(file);
         List<Tag> imageTags = findOrCreateTags(tags);
 
+
         if (updatedImageData.isEmpty())
             updatedImage.setImageFile(image.getImageFile());
         else {
@@ -132,19 +153,36 @@ public class ImageController {
         updatedImage.setDate(new Date());
 
         imageService.updateImage(updatedImage);
-        return "redirect:/images/" + updatedImage.getTitle();
+        return "redirect:/images/" + updatedImage.getId() + "/" + updatedImage.getTitle();
     }
 
 
     //This controller method is called when the request pattern is of type 'deleteImage' and also the incoming request is of DELETE type
-    //The method calls the deleteImage() method in the business logic passing the id of the image to be deleted
+    //The method calls the deleteImage() method in the business logic passing the id of the image to be deleted if you are the owner of the image
+    // Else it will show you a Privilege Violation Error
     //Looks for a controller method with request mapping of type '/images'
     @RequestMapping(value = "/deleteImage", method = RequestMethod.DELETE)
-    public String deleteImageSubmit(@RequestParam(name = "imageId") Integer imageId) {
-        imageService.deleteImage(imageId);
-        return "redirect:/images";
-    }
+    public String deleteImageSubmit(@RequestParam(name = "imageId") Integer imageId, Model model, HttpSession session) {
 
+        Image image = imageService.getImage(imageId);
+        User user = (User) session.getAttribute("loggeduser");
+
+        //If you are not the owner of the image
+        if (image.getUser().getId() != user.getId()) {
+            String error = "Only the owner of the image can delete the image";
+            List<Comment> comments = commentController.findComments(image);
+            model.addAttribute("image", image);
+            model.addAttribute("tags", image.getTags());
+            model.addAttribute("comments", comments);
+            model.addAttribute("deleteError", error);
+            return "images/image";
+        }
+        //If you are the owner of the image
+        else {
+            imageService.deleteImage(imageId);
+            return "redirect:/images";
+        }
+    }
 
     //This method converts the image to Base64 format
     private String convertUploadedFileToBase64(MultipartFile file) throws IOException {
@@ -170,6 +208,8 @@ public class ImageController {
         }
         return tags;
     }
+
+
 
 
     //The method receives the list of all tags

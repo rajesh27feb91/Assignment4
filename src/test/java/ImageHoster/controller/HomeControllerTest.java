@@ -1,6 +1,8 @@
-/*
+
 package ImageHoster.controller;
 
+import ImageHoster.repository.CommentRepository;
+import ImageHoster.service.CommentService;
 import ImageHoster.service.ImageService;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,6 +30,9 @@ public class HomeControllerTest {
     @MockBean
     private ImageService imageService;
 
+    @MockBean
+    private CommentService commentService;
+
     //This test checks the controller logic when the user sends the GET request to get all images in the application and checks whether the logic returns the html file 'index.html'
     @Test
     public void getAllImages() throws Exception {
@@ -36,4 +41,4 @@ public class HomeControllerTest {
                 .andExpect(content().string(containsString("Image Hoster")));
     }
 }
-*/
+
